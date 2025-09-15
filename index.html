@@ -650,11 +650,11 @@
                 loadingEl.querySelector('p').textContent = 'Loading AI Model...';
             }
             try {
-                model = await cocoSsd.load({ base: 'mobilenet_v1' });
+                model = await cocoSsd.load({ base: 'mobilenet_v2' });
                 // Warmup with a tiny dummy tensor to compile kernels faster
                 try { tf.tidy(() => tf.zeros([1, 64, 64, 3], 'int32')); } catch (_) {}
                 loadingEl.style.display = 'none';
-                console.log('Model loaded (mobilenet_v1)');
+                console.log('Model loaded (mobilenet_v2)');
                 return model;
             } catch (error) {
                 console.error('Error loading model:', error);
@@ -692,8 +692,8 @@
                 ensureModel(true).catch(() => {});
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
-                        width: { ideal: 426 }, 
-                        height: { ideal: 240 },
+                        width: { ideal: 640 }, 
+                        height: { ideal: 360 },
                         facingMode: 'environment'
                     } 
                 });
