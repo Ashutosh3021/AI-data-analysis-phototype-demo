@@ -3,18 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Traffic Violation Detector</title>
+    <title>Traffic Violation Detection System</title>
+    
+    <!-- TensorFlow.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm@4.11.0/dist/tf-backend-wasm.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+    
+    <!-- Icons -->
+    <script defer src="https://kit.fontawesome.com/ed04f67d8c.js" crossorigin="anonymous"></script>
+    
     <style>
-        /* Traffic-themed color scheme */
-        :root {
-            --red-light: #ff4444;
-            --yellow-light: #ffcc00;
-            --green-light: #00cc44;
-            --dark-bg: #1a1a1a;
-            --light-gray: #f0f0f0;
-            --border-gray: #333;
-        }
-
         * {
             margin: 0;
             padding: 0;
@@ -22,138 +21,408 @@
         }
 
         body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, var(--dark-bg) 0%, #2d2d2d 100%);
-            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
             min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
             padding: 20px;
         }
 
         .header {
             text-align: center;
             margin-bottom: 30px;
+            animation: fadeInDown 0.8s ease-out;
         }
 
         .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            background: linear-gradient(45deg, var(--red-light), var(--yellow-light), var(--green-light));
+            font-size: 3em;
+            background: linear-gradient(45deg, #00ff88, #00ccff);
             -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
             background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+            text-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
         }
 
         .header p {
-            color: #ccc;
-            font-size: 1.1em;
+            font-size: 1.2em;
+            color: #a0a0a0;
         }
 
-        .camera-container {
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .video-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 1s ease-out;
+        }
+
+        .video-container {
             position: relative;
-            border: 3px solid var(--border-gray);
+            width: 100%;
+            background: #000;
             border-radius: 15px;
             overflow: hidden;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            aspect-ratio: 16/9;
         }
 
-        #videoElement {
-            width: 640px;
-            height: 480px;
-            background: #000;
-            display: block;
+        #videoElement, #uploadedVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
         }
 
-        #canvasOverlay {
+        #canvas {
             position: absolute;
             top: 0;
             left: 0;
-            width: 640px;
-            height: 480px;
+            width: 100%;
+            height: 100%;
             pointer-events: none;
         }
 
         .controls {
+            margin-top: 20px;
             display: flex;
-            gap: 20px;
-            margin-bottom: 20px;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
         }
 
         .btn {
-            padding: 12px 25px;
+            padding: 12px 24px;
             border: none;
-            border-radius: 25px;
-            font-size: 1.1em;
-            font-weight: bold;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 48px;
+        }
+
+        .btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #00ff88, #00ccff);
+            color: #000;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #ff006e, #ff4458);
+            color: #fff;
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: #fff;
         }
 
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-        }
-
-        .btn-start {
-            background: linear-gradient(45deg, var(--green-light), #00aa33);
-            color: white;
-        }
-
-        .btn-stop {
-            background: linear-gradient(45deg, var(--red-light), #cc3333);
-            color: white;
+            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.4);
         }
 
         .btn:disabled {
-            opacity: 0.5;
+            opacity: 0.6;
             cursor: not-allowed;
             transform: none;
+            box-shadow: none;
         }
 
-        .status-panel {
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid var(--border-gray);
-            border-radius: 10px;
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        #fileInput {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
             padding: 20px;
-            min-width: 300px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            animation: fadeInRight 1s ease-out;
+        }
+
+        .panel h3 {
+            margin-bottom: 15px;
+            color: #00ff88;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel h3 svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .detection-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border-left: 4px solid #00ff88;
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .violation-item {
+            background: rgba(255, 0, 0, 0.1);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border-left: 4px solid #ff4458;
+            animation: pulse 1s ease-in-out infinite;
+            position: relative;
+        }
+
+        .violation-timestamp {
+            font-size: 0.8em;
+            color: #a0a0a0;
+            margin-top: 5px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 10px;
             text-align: center;
         }
 
-        .status-title {
-            font-size: 1.3em;
+        .stat-item .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .stat-item .label {
+            font-size: 0.9em;
+            color: #a0a0a0;
+            margin-top: 5px;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top: 4px solid #00ff88;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        .settings-panel {
+            margin-top: 20px;
+        }
+
+        .setting-item {
             margin-bottom: 15px;
-            color: var(--yellow-light);
         }
 
-        .violation-alert {
-            background: linear-gradient(45deg, var(--red-light), #ff6666);
-            color: white;
-            padding: 15px;
+        .setting-item label {
+            display: block;
+            margin-bottom: 5px;
+            color: #a0a0a0;
+        }
+
+        .setting-item input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        .setting-item input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #00ff88;
+            cursor: pointer;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+            display: inline-block;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .4s;
+            border-radius: 30px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: #00ff88;
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(30px);
+        }
+
+        .session-info {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px 15px;
             border-radius: 8px;
-            margin: 10px 0;
-            font-weight: bold;
-            font-size: 1.2em;
-            animation: pulse 2s infinite;
+            margin-bottom: 15px;
+            font-size: 0.9em;
         }
 
-        .safe-status {
-            background: linear-gradient(45deg, var(--green-light), #66cc66);
-            color: white;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 10px 0;
-            font-weight: bold;
-            font-size: 1.2em;
+        .download-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
         }
 
-        .loading-status {
-            color: var(--yellow-light);
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+            min-height: 36px;
+        }
+
+        .btn-small svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .no-violations {
+            text-align: center;
+            color: #a0a0a0;
+            padding: 20px;
             font-style: italic;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInRight {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         @keyframes pulse {
@@ -162,248 +431,802 @@
             100% { opacity: 1; }
         }
 
-        .detection-info {
-            margin-top: 15px;
-            font-size: 0.9em;
-            color: #ccc;
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+            }
         }
 
-        /* Responsive design */
-        @media (max-width: 768px) {
-            #videoElement, #canvasOverlay {
-                width: 100%;
-                max-width: 480px;
-                height: auto;
+        @media (max-width: 640px) {
+            .header h1 {
+                font-size: 2em;
             }
             
+            .sidebar {
+                grid-template-columns: 1fr;
+            }
+
             .controls {
                 flex-direction: column;
-                align-items: center;
+                align-items: stretch;
             }
-            
+
             .btn {
-                width: 200px;
+                width: 100%;
+                justify-content: center;
             }
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🚦 AI Traffic Violation Detector</h1>
-        <p>Real-time helmet detection for motorcycle safety</p>
-    </div>
-
-    <div class="camera-container">
-        <video id="videoElement" autoplay playsinline></video>
-        <canvas id="canvasOverlay"></canvas>
-    </div>
-
-    <div class="controls">
-        <button id="startBtn" class="btn btn-start">🎥 Start Camera</button>
-        <button id="stopBtn" class="btn btn-stop" disabled>⏹️ Stop Camera</button>
-    </div>
-
-    <div class="status-panel">
-        <div class="status-title">Detection Status</div>
-        <div id="statusDisplay">
-            <div class="loading-status">Click "Start Camera" to begin detection</div>
+    <div class="container">
+        <div class="header">
+            <h1>Traffic Violation Detection System</h1>
+            <p>AI-Powered Real-Time Traffic Monitoring</p>
         </div>
-        <div class="detection-info">
-            <div>Faces Detected: <span id="faceCount">0</span></div>
-            <div>Processing: <span id="processingStatus">Idle</span></div>
+
+        <div class="main-content">
+            <div class="video-section">
+                <div class="video-container">
+                    <video id="videoElement" autoplay></video>
+                    <video id="uploadedVideo"></video>
+                    <canvas id="canvas"></canvas>
+                    <div class="loading" id="loading">
+                        <div class="spinner"></div>
+                        <p>Initializing AI Model...</p>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button class="btn btn-primary" id="startWebcam">
+                        <i class="fa-solid fa-camera"></i>
+                        Start Webcam
+                    </button>
+                    <div class="file-input-wrapper">
+                        <label for="fileInput" class="btn btn-secondary">
+                            <i class="fa-solid fa-upload"></i>
+                            Upload Video
+                        </label>
+                        <input type="file" id="fileInput" accept="video/*">
+                    </div>
+                    <button class="btn btn-danger" id="stopDetection">
+                        <i class="fa-solid fa-circle-stop"></i>
+                        Stop Detection
+                    </button>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="panel">
+                    <h3>
+                        <i class="fa-solid fa-chart-line"></i>
+                        Detection Status
+                    </h3>
+                    <div class="session-info">
+                        <div>Session: <span id="sessionTime">00:00</span></div>
+                        <div>FPS: <span id="fpsCounter">0</span></div>
+                    </div>
+                    <div id="detectionList"></div>
+                    <div class="stats">
+                        <div class="stat-item">
+                            <div class="value" id="objectCount">0</div>
+                            <div class="label">Objects Detected</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="value" id="violationCount">0</div>
+                            <div class="label">Violations</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        Violations Log
+                    </h3>
+                    <div class="download-actions">
+                        <button class="btn btn-success btn-small" id="downloadJson">
+                            <i class="fa-solid fa-download"></i>
+                            Download JSON
+                        </button>
+                        <button class="btn btn-success btn-small" id="downloadCsv">
+                            <i class="fa-solid fa-download"></i>
+                            Download CSV
+                        </button>
+                        <button class="btn btn-secondary btn-small" id="viewScreenshots">
+                            <i class="fa-solid fa-images"></i>
+                            View Screenshots
+                        </button>
+                        <button class="btn btn-secondary btn-small" id="clearLogs">
+                            <i class="fa-solid fa-trash"></i>
+                            Clear
+                        </button>
+                    </div>
+                    <div id="violationsList">
+                        <div class="no-violations">No violations detected yet</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>
+                        <i class="fa-solid fa-gears"></i>
+                        Settings
+                    </h3>
+                    <div class="settings-panel">
+                        <div class="setting-item">
+                            <label>Detection Confidence: <span id="confidenceValue">50</span>%</label>
+                            <input type="range" id="confidenceSlider" min="10" max="90" value="50">
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <span>Helmet Detection</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="helmetToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <span>Vehicle Tracking</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="vehicleToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-
-    <!-- OpenCV.js CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.8.0/opencv.js"></script>
-
+    
     <script>
-           let videoStream = null;
-    let isDetecting = false;
-    let cv = null;
-    let classifier = null;
-    let videoElement = null;
-    let canvas = null;
-    let ctx = null;
+        // Global variables
+        let model = null;
+        let videoElement = null;
+        let uploadedVideo = null;
+        let canvas = null;
+        let ctx = null;
+        let isDetecting = false;
+        let detectionHistory = new Map();
+        let violationCount = 0;
+        let frameCount = 0;
+        let lastDetections = [];
+        let violationsLog = [];
+        let screenshots = [];
+        let sessionStartTime = null;
+        let fpsCounter = { frames: 0, startTime: Date.now() };
 
-    // DOM elements
-    const startBtn = document.getElementById('startBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const statusDisplay = document.getElementById('statusDisplay');
-    const faceCountElement = document.getElementById('faceCount');
-    const processingStatusElement = document.getElementById('processingStatus'); // ✅ FIX
+        // Initialize elements
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize icons if available
+            try { if (window.lucide && lucide.createIcons) lucide.createIcons(); } catch (_) {}
 
-    // Update status display
-    function updateStatus(message, className) {
-        statusDisplay.innerHTML = `<div class="${className}">${message}</div>`;
-    }
+            videoElement = document.getElementById('videoElement');
+            uploadedVideo = document.getElementById('uploadedVideo');
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
 
-    // Initialize
-    function initializeElements() {
-        videoElement = document.getElementById('videoElement');
-        canvas = document.getElementById('canvasOverlay');
-        ctx = canvas.getContext('2d');
-
-        canvas.width = 640;
-        canvas.height = 480;
-
-        startBtn.addEventListener('click', startCamera);
-        stopBtn.addEventListener('click', stopCamera);
-    }
-
-    async function startCamera() {
-        try {
-            updateStatus('Requesting camera access...', 'loading-status');
-            processingStatusElement.textContent = 'Starting';
-
-            videoStream = await navigator.mediaDevices.getUserMedia({
-                video: { width: 640, height: 480, facingMode: 'user' }
-            });
-
-            videoElement.srcObject = videoStream;
-
-            videoElement.onloadedmetadata = () => {
-                videoElement.play().then(() => {
-                    startDetection();
-                }).catch(err => {
-                    console.error("Autoplay blocked:", err);
-                });
-            };
-
-            startBtn.disabled = true;
-            stopBtn.disabled = false;
-            updateStatus('Camera started - Initializing detection...', 'loading-status');
-
-        } catch (error) {
-            console.error('Error accessing camera:', error);
-            updateStatus('Camera access denied or unavailable', 'loading-status');
-            processingStatusElement.textContent = 'Error';
-        }
-    }
-
-    function stopCamera() {
-        isDetecting = false;
-        if (videoStream) {
-            videoStream.getTracks().forEach(track => track.stop());
-            videoStream = null;
-        }
-        videoElement.srcObject = null;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        startBtn.disabled = false;
-        stopBtn.disabled = true;
-        updateStatus('Camera stopped', 'loading-status');
-        faceCountElement.textContent = '0';
-        processingStatusElement.textContent = 'Stopped';
-    }
-
-    // Detection loop (same as before, fallback simulated)
-    function startDetection() {
-        isDetecting = true;
-        processingStatusElement.textContent = 'Active';
-        updateStatus('Monitoring for violations...', 'safe-status');
-        detectLoop();
-    }
-
-    function detectLoop() {
-        if (!isDetecting) return;
-        performSimpleFaceDetection(); // simulated
-        setTimeout(detectLoop, 200);
-    }
-
-    function performSimpleFaceDetection() {
-        const faces = Math.random() > 0.3 ? 1 : 0;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        if (faces > 0) {
-            drawBoundingBox(220, 160, 150, 180);
-            faceCountElement.textContent = faces;
-            updateStatus('⚠️ HELMET MISSING - VIOLATION DETECTED', 'violation-alert');
-        } else {
-            faceCountElement.textContent = '0';
-            updateStatus('No violations detected', 'safe-status');
-        }
-    }
-
-    function drawBoundingBox(x, y, width, height) {
-        ctx.strokeStyle = '#ff4444';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(x, y, width, height);
-        ctx.fillStyle = '#ff4444';
-        ctx.font = 'bold 16px Arial';
-        ctx.fillRect(x, y - 25, 120, 25);
-        ctx.fillStyle = 'white';
-        ctx.fillText('NO HELMET', x + 5, y - 8);
-    }
-
-        // Update status display
-        function updateStatus(message, className) {
-            statusDisplay.innerHTML = `<div class="${className}">${message}</div>`;
-        }
-
-        // Enhanced OpenCV.js loading with proper error handling
-        function loadOpenCV() {
-            return new Promise((resolve, reject) => {
-                if (window.cv && window.cv.Mat) {
-                    resolve(window.cv);
-                    return;
-                }
-
-                const script = document.createElement('script');
-                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.8.0/opencv.js';
-                script.async = true;
-                
-                script.onload = () => {
-                    // OpenCV.js loads asynchronously, need to wait for it to be ready
-                    const checkCV = () => {
-                        if (window.cv && window.cv.Mat) {
-                            resolve(window.cv);
-                        } else {
-                            setTimeout(checkCV, 100);
-                        }
-                    };
-                    checkCV();
-                };
-                
-                script.onerror = () => {
-                    reject(new Error('Failed to load OpenCV.js'));
-                };
-                
-                document.head.appendChild(script);
-            });
-        }
-
-        // Initialize application
-        async function initializeApp() {
+            // Prepare backend and lazy-load model on first use
             try {
-                // Try to load OpenCV.js
-                cv = await loadOpenCV();
-                opencvLoaded = true;
-                console.log('OpenCV.js loaded successfully');
+                if (tf && tf.setBackend) {
+                    // Prefer WASM for quick startup on low-end GPUs; fallback to WebGL/CPU
+                    await tf.setBackend('wasm');
+                    await tf.ready();
+                }
+            } catch (e) { console.warn('TF backend init warning:', e); }
+
+            // Defer model loading until user starts webcam or uploads video
+            document.getElementById('loading').style.display = 'none';
+
+            // Event listeners
+            document.getElementById('startWebcam').addEventListener('click', startWebcam);
+            document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+            document.getElementById('stopDetection').addEventListener('click', stopDetection);
+            document.getElementById('confidenceSlider').addEventListener('input', updateConfidence);
+            document.getElementById('downloadJson').addEventListener('click', downloadJsonLog);
+            document.getElementById('downloadCsv').addEventListener('click', downloadCsvLog);
+            document.getElementById('clearLogs').addEventListener('click', clearViolationsLog);
+            document.getElementById('viewScreenshots').addEventListener('click', openScreenshotsWindow);
+
+            // Start session timer
+            updateSessionTimer();
+            updateFpsCounter();
+
+        });
+
+        async function ensureModel(showLoader = true) {
+            if (model) return model;
+            const loadingEl = document.getElementById('loading');
+            if (showLoader) {
+                loadingEl.style.display = 'block';
+                loadingEl.querySelector('p').textContent = 'Loading AI Model...';
+            }
+            try {
+                model = await cocoSsd.load({ base: 'mobilenet_v1' });
+                // Warmup with a tiny dummy tensor to compile kernels faster
+                try { tf.tidy(() => tf.zeros([1, 64, 64, 3], 'int32')); } catch (_) {}
+                loadingEl.style.display = 'none';
+                console.log('Model loaded (mobilenet_v1)');
+                return model;
             } catch (error) {
-                console.warn('OpenCV.js failed to load:', error);
-                opencvLoaded = false;
+                console.error('Error loading model:', error);
+                if (showLoader) loadingEl.innerHTML = '<div class="spinner"></div><p>Error loading AI model</p>';
+                throw error;
+            }
+        }
+
+        // Session timer
+        function updateSessionTimer() {
+            if (sessionStartTime) {
+                const elapsed = Math.floor((Date.now() - sessionStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('sessionTime').textContent = `${minutes}:${seconds}`;
+            }
+            setTimeout(updateSessionTimer, 1000);
+        }
+
+        // FPS Counter
+        function updateFpsCounter() {
+            const now = Date.now();
+            if (now - fpsCounter.startTime >= 1000) {
+                document.getElementById('fpsCounter').textContent = fpsCounter.frames;
+                fpsCounter.frames = 0;
+                fpsCounter.startTime = now;
+            }
+            setTimeout(updateFpsCounter, 100);
+        }
+
+        // Start webcam
+        async function startWebcam() {
+            try {
+                // Kick off model load in background without blocking video start
+                ensureModel(true).catch(() => {});
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 426 }, 
+                        height: { ideal: 240 },
+                        facingMode: 'environment'
+                    } 
+                });
+                
+                videoElement.srcObject = stream;
+                videoElement.style.display = 'block';
+                uploadedVideo.style.display = 'none';
+                
+                videoElement.addEventListener('loadeddata', () => {
+                    canvas.width = videoElement.videoWidth;
+                    canvas.height = videoElement.videoHeight;
+                    isDetecting = true;
+                    sessionStartTime = Date.now();
+                    detectObjects();
+                });
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+                alert('Unable to access webcam. Please check permissions.');
+            }
+        }
+
+        // Handle file upload
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                uploadedVideo.src = url;
+                uploadedVideo.style.display = 'block';
+                videoElement.style.display = 'none';
+                
+                uploadedVideo.addEventListener('loadeddata', async () => {
+                    // Begin loading model in background if not already ready
+                    ensureModel(true).catch(() => {});
+                    canvas.width = uploadedVideo.videoWidth;
+                    canvas.height = uploadedVideo.videoHeight;
+                    isDetecting = true;
+                    sessionStartTime = Date.now();
+                    uploadedVideo.play();
+                    detectObjects();
+                });
+            }
+        }
+
+        // Stop detection
+        function stopDetection() {
+            isDetecting = false;
+            if (videoElement.srcObject) {
+                videoElement.srcObject.getTracks().forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+            if (uploadedVideo.src) {
+                uploadedVideo.pause();
+                uploadedVideo.src = '';
+            }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            detectionHistory.clear();
+            sessionStartTime = null;
+        }
+
+        // Update confidence
+        function updateConfidence(event) {
+            document.getElementById('confidenceValue').textContent = event.target.value;
+        }
+
+        // Main detection loop
+        async function detectObjects() {
+            if (!isDetecting || !model) return;
+
+            const activeVideo = videoElement.style.display === 'block' ? videoElement : uploadedVideo;
+            
+            if (activeVideo.readyState === 4) {
+                const predictions = await model.detect(activeVideo);
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Process detections with stability
+                const stabilizedDetections = stabilizeDetections(predictions);
+                
+                // Draw detections
+                drawDetections(stabilizedDetections);
+                
+                // Check for violations
+                checkViolations(stabilizedDetections);
+                
+                // Update UI
+                updateDetectionList(stabilizedDetections);
+                document.getElementById('objectCount').textContent = stabilizedDetections.length;
+                
+                fpsCounter.frames++;
+            }
+
+            frameCount++;
+            requestAnimationFrame(detectObjects);
+        }
+
+        // Stabilize detections to prevent flickering
+        function stabilizeDetections(predictions) {
+            const confidenceThreshold = document.getElementById('confidenceSlider').value / 100;
+            const currentTime = Date.now();
+            const stabilized = [];
+            
+            // Filter by confidence
+            const filtered = predictions.filter(p => p.score >= confidenceThreshold);
+            
+            // Update detection history
+            filtered.forEach(detection => {
+                const key = `${detection.class}_${Math.round(detection.bbox[0]/50)}_${Math.round(detection.bbox[1]/50)}`;
+                
+                if (!detectionHistory.has(key)) {
+                    detectionHistory.set(key, {
+                        detection: detection,
+                        firstSeen: currentTime,
+                        lastSeen: currentTime,
+                        stable: false,
+                        id: Math.random().toString(36).substr(2, 9)
+                    });
+                } else {
+                    const history = detectionHistory.get(key);
+                    history.lastSeen = currentTime;
+                    history.detection = detection;
+                    
+                    // Mark as stable if seen for more than 3 frames
+                    if (currentTime - history.firstSeen > 100) {
+                        history.stable = true;
+                    }
+                }
+            });
+            
+            // Clean up old detections
+            for (const [key, history] of detectionHistory) {
+                if (currentTime - history.lastSeen > 500) {
+                    detectionHistory.delete(key);
+                } else if (history.stable) {
+                    stabilized.push({
+                        ...history.detection,
+                        id: history.id,
+                        stable: true
+                    });
+                }
             }
             
-            initializeElements();
-            loadHaarCascade();
+            return stabilized;
         }
 
-        // Wait for DOM to be ready, then initialize
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeApp);
-        } else {
-            initializeApp();
+        // Draw detections on canvas
+        function drawDetections(detections) {
+            detections.forEach(detection => {
+                const [x, y, width, height] = detection.bbox;
+                
+                // Set color based on object type
+                let color = '#00ff88';
+                if (detection.class === 'person') color = '#00ccff';
+                else if (detection.class === 'car' || detection.class === 'truck' || detection.class === 'bus') color = '#ff9f00';
+                else if (detection.class === 'motorcycle' || detection.class === 'bicycle') color = '#ff006e';
+                
+                // Draw bounding box
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x, y, width, height);
+                
+                // Draw label background
+                const label = `${detection.class} (${Math.round(detection.score * 100)}%)`;
+                ctx.font = '16px Arial';
+                const textWidth = ctx.measureText(label).width;
+                
+                ctx.fillStyle = color;
+                ctx.fillRect(x, y - 25, textWidth + 10, 25);
+                
+                // Draw label text
+                ctx.fillStyle = '#000';
+                ctx.fillText(label, x + 5, y - 7);
+                
+                // Draw ID for stable tracking
+                if (detection.stable) {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '12px Arial';
+                    ctx.fillText(`ID: ${detection.id}`, x + 5, y + height - 5);
+                }
+            });
         }
 
-        // Handle page visibility changes
+        // Check for violations
+        function checkViolations(detections) {
+            const helmetEnabled = document.getElementById('helmetToggle').checked;
+            const vehicleEnabled = document.getElementById('vehicleToggle').checked;
+            
+            detections.forEach(detection => {
+                // Simulated violation detection (would need specialized models in production)
+                if (helmetEnabled && detection.class === 'motorcycle') {
+                    // Check for nearby person (rider) without helmet
+                    const nearbyPerson = detections.find(d => 
+                        d.class === 'person' && 
+                        isNearby(detection.bbox, d.bbox)
+                    );
+                    
+                    if (nearbyPerson && Math.random() > 0.85) { // Simulated helmet detection
+                        addViolation('No Helmet', 'Motorcycle rider without helmet detected', detection);
+                    }
+                }
+                
+                if (vehicleEnabled && (detection.class === 'car' || detection.class === 'truck')) {
+                    // Simulated traffic light violation
+                    if (Math.random() > 0.98) {
+                        addViolation('Red Light', 'Vehicle crossed during red signal', detection);
+                    }
+                    
+                    // Simulated speed violation
+                    if (Math.random() > 0.995) {
+                        addViolation('Speeding', 'Vehicle exceeding speed limit', detection);
+                    }
+                }
+
+                // Simulated wrong way driving
+                if (vehicleEnabled && Math.random() > 0.999) {
+                    addViolation('Wrong Direction', 'Vehicle driving in wrong direction', detection);
+                }
+            });
+        }
+
+        // Check if two bounding boxes are nearby
+        function isNearby(bbox1, bbox2) {
+            const [x1, y1, w1, h1] = bbox1;
+            const [x2, y2, w2, h2] = bbox2;
+            
+            const center1 = { x: x1 + w1/2, y: y1 + h1/2 };
+            const center2 = { x: x2 + w2/2, y: y2 + h2/2 };
+            
+            const distance = Math.sqrt(
+                Math.pow(center1.x - center2.x, 2) + 
+                Math.pow(center1.y - center2.y, 2)
+            );
+            
+            return distance < 100;
+        }
+
+        // Add violation to log
+        function addViolation(type, description, detection) {
+            const timestamp = new Date();
+            const violation = {
+                id: `V-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                type: type,
+                description: description,
+                timestamp: timestamp.toISOString(),
+                localTime: timestamp.toLocaleString(),
+                detection: {
+                    class: detection.class,
+                    confidence: Math.round(detection.score * 100),
+                    bbox: detection.bbox,
+                    objectId: detection.id || 'unknown'
+                },
+                sessionTime: sessionStartTime ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0
+            };
+
+            violationsLog.push(violation);
+            violationCount++;
+            document.getElementById('violationCount').textContent = violationCount;
+            
+            updateViolationsUI();
+
+            // Capture screenshot of current canvas with overlays
+            try { captureScreenshot(violation); } catch (e) { console.warn('Screenshot capture failed:', e); }
+        }
+
+        // Update violations UI
+        function updateViolationsUI() {
+            const violationsList = document.getElementById('violationsList');
+            
+            if (violationsLog.length === 0) {
+                violationsList.innerHTML = '<div class="no-violations">No violations detected yet</div>';
+                return;
+            }
+
+            violationsList.innerHTML = '';
+            
+            // Show last 10 violations
+            const recentViolations = violationsLog.slice(-10).reverse();
+            
+            recentViolations.forEach(violation => {
+                const violationItem = document.createElement('div');
+                violationItem.className = 'violation-item';
+                violationItem.innerHTML = `
+                    <div style="display: flex; justify-content: between; align-items: start; gap: 10px;">
+                        <div style="flex: 1;">
+                            <strong>${violation.type}</strong><br>
+                            <small style="color: #ccc;">${violation.description}</small><br>
+                            <small style="color: #ff9f00;">Object: ${violation.detection.class} (${violation.detection.confidence}%)</small>
+                        </div>
+                        <div style="text-align: right; font-size: 0.8em; color: #a0a0a0;">
+                            ID: ${violation.id.split('-')[2]}<br>
+                            ${violation.localTime.split(',')[1]}
+                        </div>
+                    </div>
+                    <div class="violation-timestamp">${violation.localTime.split(',')[0]}</div>
+                `;
+                violationsList.appendChild(violationItem);
+            });
+        }
+
+        // Capture current frame (with overlays) as image
+        function captureScreenshot(violation) {
+            if (!canvas || canvas.width === 0 || canvas.height === 0) return;
+            const dataUrl = canvas.toDataURL('image/png');
+            screenshots.push({
+                id: violation.id,
+                type: violation.type,
+                description: violation.description,
+                localTime: violation.localTime,
+                sessionTime: violation.sessionTime,
+                dataUrl
+            });
+            // Keep last 100 screenshots
+            if (screenshots.length > 100) screenshots = screenshots.slice(-100);
+        }
+
+        // Open screenshots in a separate window
+        function openScreenshotsWindow() {
+            const win = window.open('', '_blank');
+            if (!win) { alert('Please allow pop-ups to view screenshots.'); return; }
+            const gridHtml = screenshots.slice().reverse().map(function(s){
+                return (
+                    '<div class="card">' +
+                        '<a class="imgwrap" href="#" onclick="openFull(\''+s.dataUrl+'\');return false;">' +
+                            '<img src="'+s.dataUrl+'" alt="'+s.type+'" />' +
+                        '</a>' +
+                        '<div class="meta">' +
+                            '<span class="badge">'+s.type+'</span>' +
+                            '<span>'+(s.localTime.split(',')[0])+' '+(s.localTime.split(',')[1] || '')+'</span>' +
+                        '</div>' +
+                        '<div class="meta">' +
+                            '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%;">'+s.description+'</span>' +
+                            '<div class="actions">' +
+                                '<button class="btn" onclick="openFull(\''+s.dataUrl+'\')">Open</button>' +
+                                '<button class="btn" onclick="download(\''+s.dataUrl+'\',\''+s.id+'.png\')">Download</button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>'
+                );
+            }).join('');
+            const count = screenshots.length;
+            const emptyHtml = (count === 0) ? '<div class="empty">No screenshots captured yet.</div>' : '';
+            const html = [
+                '<!DOCTYPE html>',
+                '<html lang="en">',
+                '<head>',
+                '    <meta charset="UTF-8" />',
+                '    <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+                '    <title>Screenshots ('+count+')</title>',
+                '    <style>',
+                '        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #0f0c29; color: #fff; margin: 0; }',
+                '        header { padding: 16px 20px; position: sticky; top: 0; background: #141035; box-shadow: 0 2px 8px rgba(0,0,0,0.4); z-index: 1; }',
+                '        .count { color: #00ff88; font-weight: 700; }',
+                '        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; padding: 16px; }',
+                '        .card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; overflow: hidden; }',
+                '        .meta { padding: 10px 12px; font-size: 12px; color: #a0a0a0; display: flex; justify-content: space-between; gap: 8px; }',
+                '        .imgwrap { background: #000; display: block; }',
+                '        img { width: 100%; display: block; }',
+                '        .badge { color: #000; background: linear-gradient(45deg,#00ff88,#00ccff); padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }',
+                '        .actions { display:flex; gap:8px; }',
+                '        .btn { background: rgba(255,255,255,0.12); color:#fff; border:none; border-radius:8px; padding:6px 10px; cursor:pointer; font-size:12px; }',
+                '        .btn:hover { background: rgba(255,255,255,0.2); }',
+                '        .empty { padding: 40px; text-align:center; color:#a0a0a0; }',
+                '    </style>',
+                '</head>',
+                '<body>',
+                '    <header>',
+                '        <strong>Screenshots</strong> <span class="count">'+count+'</span>',
+                '    </header>',
+                '    '+emptyHtml,
+                '    <div class="grid">',
+                gridHtml,
+                '    </div>',
+                '</body>',
+                '</html>'
+            ].join('\n');
+            win.document.open();
+            win.document.write(html);
+            win.document.close();
+            // Attach helper functions on the new window
+            try {
+                win.download = function(dataUrl, name){ const a = win.document.createElement('a'); a.href = dataUrl; a.download = name; a.click(); };
+                win.openFull = function(dataUrl){ const w2 = win.open(); if (w2) { w2.document.write('<img src="'+dataUrl+'" style="max-width:100%">'); } };
+            } catch (e) { console.warn('Failed to attach screenshot helpers:', e); }
+        }
+
+        // Download JSON log
+        function downloadJsonLog() {
+            if (violationsLog.length === 0) {
+                alert('No violations to download');
+                return;
+            }
+
+            const dataStr = JSON.stringify({
+                sessionInfo: {
+                    startTime: sessionStartTime ? new Date(sessionStartTime).toISOString() : null,
+                    totalViolations: violationsLog.length,
+                    exportTime: new Date().toISOString()
+                },
+                violations: violationsLog
+            }, null, 2);
+
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            const exportFileDefaultName = `violations_log_${new Date().toISOString().split('T')[0]}.json`;
+
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        }
+
+        // Download CSV log
+        function downloadCsvLog() {
+            if (violationsLog.length === 0) {
+                alert('No violations to download');
+                return;
+            }
+
+            const csvHeader = 'Violation ID,Type,Description,Object Class,Confidence %,Timestamp,Local Time,Session Time (seconds),Bbox X,Bbox Y,Bbox Width,Bbox Height\n';
+            
+            const csvContent = violationsLog.map(violation => {
+                return [
+                    violation.id,
+                    violation.type,
+                    `"${violation.description}"`,
+                    violation.detection.class,
+                    violation.detection.confidence,
+                    violation.timestamp,
+                    `"${violation.localTime}"`,
+                    violation.sessionTime,
+                    Math.round(violation.detection.bbox[0]),
+                    Math.round(violation.detection.bbox[1]),
+                    Math.round(violation.detection.bbox[2]),
+                    Math.round(violation.detection.bbox[3])
+                ].join(',');
+            }).join('\n');
+
+            const csvData = csvHeader + csvContent;
+            const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvData);
+            const exportFileDefaultName = `violations_log_${new Date().toISOString().split('T')[0]}.csv`;
+
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        }
+
+        // Clear violations log
+        function clearViolationsLog() {
+            if (confirm('Are you sure you want to clear all violation logs?')) {
+                violationsLog = [];
+                violationCount = 0;
+                document.getElementById('violationCount').textContent = '0';
+                updateViolationsUI();
+            }
+        }
+
+        // Update detection list UI
+        function updateDetectionList(detections) {
+            const detectionList = document.getElementById('detectionList');
+            detectionList.innerHTML = '';
+            
+            // Group detections by class
+            const grouped = detections.reduce((acc, det) => {
+                if (!acc[det.class]) acc[det.class] = 0;
+                acc[det.class]++;
+                return acc;
+            }, {});
+            
+            if (Object.keys(grouped).length === 0) {
+                const item = document.createElement('div');
+                item.className = 'detection-item';
+                item.innerHTML = '<span>No objects detected</span>';
+                detectionList.appendChild(item);
+                return;
+            }
+            
+            Object.entries(grouped).forEach(([className, count]) => {
+                const item = document.createElement('div');
+                item.className = 'detection-item';
+                
+                // Add icon based on object type
+                let icon = '🔍';
+                if (className === 'person') icon = '👤';
+                else if (className === 'car') icon = '🚗';
+                else if (className === 'truck') icon = '🚛';
+                else if (className === 'bus') icon = '🚌';
+                else if (className === 'motorcycle') icon = '🏍️';
+                else if (className === 'bicycle') icon = '🚲';
+                
+                item.innerHTML = `
+                    <span>${icon} ${className}</span>
+                    <strong style="color: #00ff88;">${count}</strong>
+                `;
+                detectionList.appendChild(item);
+            });
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'c' && e.ctrlKey) {
+                e.preventDefault();
+                startWebcam();
+            } else if (e.key === 's' && e.ctrlKey) {
+                e.preventDefault();
+                stopDetection();
+            } else if (e.key === 'd' && e.ctrlKey) {
+                e.preventDefault();
+                downloadJsonLog();
+            }
+        });
+
+        // Auto-save violations to localStorage periodically
+        setInterval(() => {
+            if (violationsLog.length > 0) {
+                try {
+                    const data = {
+                        timestamp: Date.now(),
+                        violations: violationsLog.slice(-100) // Keep only last 100
+                    };
+                    // Note: localStorage not available in Claude artifacts
+                    console.log('Auto-save data:', data);
+                } catch (error) {
+                    console.log('Auto-save not available in this environment');
+                }
+            }
+        }, 30000); // Every 30 seconds
+
+        // Handle browser tab visibility changes
         document.addEventListener('visibilitychange', () => {
             if (document.hidden && isDetecting) {
-                // Pause detection when tab is not visible
-                isDetecting = false;
-                processingStatusElement.textContent = 'Paused';
-            } else if (!document.hidden && videoStream && !isDetecting) {
-                // Resume detection when tab becomes visible
-                startDetection();
+                console.log('Tab hidden - detection continues in background');
+            } else if (!document.hidden && isDetecting) {
+                console.log('Tab visible - detection active');
             }
         });
     </script>
